@@ -7,7 +7,7 @@ import queue
 
 ZMQ_PUBLISH_SERVER = "tcp://localhost:5555"
 
-yolo = YOLO("yolo11n.pt")
+yolo = YOLO("yolov11n.pt")
 q = queue.Queue()
 
 

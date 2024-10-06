@@ -2,6 +2,7 @@
 .venv
 yolov8s.pt
 yolo11n.pt
+config.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
