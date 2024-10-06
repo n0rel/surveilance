@@ -1,0 +1,10 @@
+
+
+config.yaml:
+```
+binding_url: "tcp://*:5555"
+encoding_extention: ".jpg"
+cameras:
+  - id: "18"
+    url: "rtsp://localhost/stream"
+```
