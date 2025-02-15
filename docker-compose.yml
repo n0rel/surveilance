@@ -1,0 +1,75 @@
+#####################################################
+# Docker Compose for running detections.            #
+#                                                   #
+# * MediaMTX should save all video to the 'shared'  #
+#   compose volume so that MiNiFi can access and    #
+#   send the video to S3                            #
+#####################################################
+
+services:
+  detector-worker:
+    scale: 1
+    build: detector-worker
+    volumes:
+     - type: bind
+       source: ./detector-worker/settings.json
+       target: /app/settings.json
+     - type: bind
+       source: ./detector-worker/model.engine
+       target: /app/yolo11n.engine
+    depends_on:
+     - mediamtx
+     - redis
+    deploy:
+     resources:
+       reservations:
+         devices:
+           - driver: nvidia
+             count: all
+             capabilities: [gpu]
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: always
+    container_name: surveilance-mediamtx
+    volumes:
+      - type: bind
+        source: ./mediamtx/mediamtx.yml
+        target: /mediamtx.yml
+      - type: volume
+        source: shared
+        target: /data
+    ports:
+      - 8554:8554 # RTSP
+      - 9998:9998 # Metrics
+      - 8889:8889 # WEBRTC
+      - 9997:9997 # API
+
+  redis:
+    image: redis/redis-stack:latest
+    restart: always
+    container_name: surveilance-redis
+
+  minifi:
+    # Make sure you've compiled the MiNiFi image to include
+    # the processors needed (AWS, Elasticsearch) and it exists locally on the
+    # machine you're deploying to
+    user: root
+    image: docker.io/library/apacheminificpp:0.99.1
+    restart: always
+    container_name: surveilance-minifi
+    volumes:
+      - type: bind
+        source: ./minifi/config.yml
+        target: /opt/minifi/minifi-current/conf/config.yml
+      - type: bind
+        source: ./minifi/bootstrap.conf
+        target: /opt/minifi/minifi-current/conf/bootstrap.conf
+      - type: volume
+        source: shared
+        target: /input
+    depends_on:
+      - mediamtx
+
+volumes:
+  shared:

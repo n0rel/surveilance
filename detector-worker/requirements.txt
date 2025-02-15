@@ -1,0 +1,7 @@
+loguru
+confluent_kafka
+pika
+redis
+requests
+pydantic
+pydantic-settings

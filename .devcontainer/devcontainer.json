@@ -1,0 +1,7 @@
+{
+    "build": { "dockerfile": "Dockerfile" , "context": ".."},
+    "customizations": {},
+    "mounts": [
+      {"source": "/home/ubuntu/.config/nvim", "target": "/root/.config/nvim", "type": "bind"}
+    ]
+}

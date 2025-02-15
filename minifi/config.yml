@@ -1,0 +1,101 @@
+Flow Controller:
+  name: S3 Video Sender Flow
+  comment: Watches directory for finished .mp4 files and sends them to S3
+Controller Services:
+  - id: 747bae3c-e68e-40af-8933-02179bd6cf85
+    name: Elastic Credentials Service
+    type: ElasticsearchCredentialsControllerService
+    Properties:
+      API Key: ''
+Processors:
+  - name: List 2 hour old MP4 files
+    class: org.apache.nifi.processors.standard.ListFile
+    max concurrent tasks: 1
+    scheduling strategy: TIMER_DRIVEN
+    scheduling period: 10 mins
+    auto-terminated relationships list: ~
+    Properties:
+      Input Directory: /input
+      Recurse Subdirectories: true
+      Minimum File Age: 60 mins
+  - name: Fetch MP4 file
+    class: org.apache.nifi.processors.standard.FetchFile
+    max concurrent tasks: 1
+    scheduling strategy: TIMER_DRIVEN
+    scheduling period: 0 sec
+    auto-terminated relationships list:
+      - not.found
+      - permission.denied
+      - failure
+    Properties:
+      File to Fetch: ${absolute.path}/${filename}
+      Completion Strategy: Delete File
+      Log level when permission denied: CRITICAL
+  - name: Put MP4 file into S3
+    class: org.apache.nifi.processors.standard.PutS3Object
+    max concurrent tasks: 1
+    scheduling strategy: TIMER_DRIVEN
+    scheduling period: 0 sec
+    auto-terminated relationships list:
+      - failure
+    Properties:
+      Bucket: surveilance
+      Access Key: ''
+      Secret Key: ''
+      Endpoint Override URL: ''
+      Object Key: ${absolute.path:substringAfter('/input/')}/${filename}
+      Content Type: video/mp4
+  - name: Create Elasticsearch JSON
+    class: org.apache.nifi.processors.standard.ReplaceText
+    max concurrent tasks: 1
+    scheduling strategy: TIMER_DRIVEN
+    scheduling period: 0 sec
+    auto-terminated relationships list:
+      - failure
+    Properties:
+      Evaluation Mode: Entire text
+      Replacement Strategy: Always Replace
+      Replacement Value: "{\"source\": \"${absolute.path:substringAfter('/input/'):substringBefore('/recordings')}\", \"path\": \"${absolute.path:substringAfter('/input/')}${filename}\"}\n"
+  - name: Post Elasticsearch JSON
+    class: org.apache.nifi.processors.standard.PostElasticsearch
+    max concurrent tasks: 1
+    scheduling strategy: TIMER_DRIVEN
+    scheduling period: 0 sec
+    auto-terminated relationships list:
+      - success
+      - failure
+      - error
+    Properties:
+      Action: index
+      Elasticsearch Credentials Provider Service: Elastic Credentials Service
+      Hosts: ''
+      Index: ''
+Connections:
+  - name: List 2 hour old MP4 files -> success -> Fetch MP4 file
+    source name: List 2 hour old MP4 files
+    source relationship name: success
+    destination name: Fetch MP4 file
+    max work queue size: 30
+    max work queue data size: 1 mb
+    flowfile expiration: 60 mins
+  - name: Fetch MP4 file -> success -> Put MP4 file into S3
+    source name: Fetch MP4 file
+    source relationship name: success
+    destination name: Put MP4 file into S3
+    max work queue size: 1
+    max work queue data size: 100 mb
+    flowfile expiration: 60 mins
+  - name: Put MP4 file into S3 -> success -> Create Elasticsearch JSON
+    source name: Put MP4 file into S3
+    source relationship name: success
+    destination name: Create Elasticsearch JSON
+    max work queue size: 1
+    max work queue data size: 100 mb
+    flowfile expiration: 60 mins
+  - name: Create Elasticsearch JSON -> success -> Post Elasticsearch JSON
+    source name: Create Elasticsearch JSON
+    source relationship name: success
+    destination name: Post Elasticsearch JSON
+    max work queue size: 1
+    max work queue data size: 100 mb
+    flowfile expiration: 60 mins
